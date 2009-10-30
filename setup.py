@@ -5,7 +5,7 @@ version = '0.1'
 
 setup(name='raptus.autocompletewidget',
       version=version,
-      description="",
+      description="archetypes autocomplete widget",
       long_description=open("README.txt").read() + "\n" +
                        open(os.path.join("docs", "HISTORY.txt")).read(),
       # Get more strings from http://www.python.org/pypi?%3Aaction=list_classifiers
@@ -13,7 +13,7 @@ setup(name='raptus.autocompletewidget',
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",
         ],
-      keywords='',
+      keywords='plone archetypes widget autocomplete',
       author='Raptus AG',
       author_email='skaeser@raptus.com',
       url='http://plone.org/products/raptus.autocompletewidget',
