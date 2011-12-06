@@ -1,8 +1,13 @@
+from zope import component, schema
+
 from Products.Five.browser import BrowserView
 
+from Products.Archetypes.utils import DisplayList
 from Products.Archetypes.Widget import TypesWidget, StringWidget, LinesWidget
 from Products.Archetypes.Registry import registerPropertyType
 from Products.Archetypes.Registry import registerWidget
+
+from Products.CMFPlone.utils import safe_unicode
 
 from raptus.autocompletewidget.interfaces import ISearchableVocabulary
 
@@ -11,7 +16,7 @@ class AutocompleteSearch(BrowserView):
     def __call__(self):
         
         field = self.request.get('f', None)
-        query = self.request.get('q', '').lower()
+        query = safe_unicode(self.request.get('q', ''))
         limit = self.request.get('limit', None)
         if not query or not field:
             return ''
@@ -20,9 +25,16 @@ class AutocompleteSearch(BrowserView):
         if not field:
             return ''
         
-        if ISearchableVocabulary.providedBy(field.vocabulary):
-            results = field.vocabulary.search(query, self.context)
+        vocabulary = field.vocabulary
+        if not isinstance(vocabulary, DisplayList) and not vocabulary:
+            factory_name = getattr(field, 'vocabulary_factory', None)
+            if factory_name is not None:
+                factory = component.getUtility(schema.interfaces.IVocabularyFactory, name=factory_name)
+                vocabulary = factory(self.context)
+        if ISearchableVocabulary.providedBy(vocabulary):
+            results = vocabulary.search(query, self.context)
         else:
+            query = query.lower()
             vocab = field.Vocabulary(self.context).items()
             results = [(value, title) for value, title in vocab if query in value.lower() or query in title.lower()]
         
@@ -35,7 +47,7 @@ class AutocompletePopulate(AutocompleteSearch):
         results = results.split('\n')
         query = self.request.get('q', '')
         for r in results:
-            if r.startswith('%s|' % query):
+            if r.startswith(u'%s|' % safe_unicode(query)):
                 return r
         
 class AutocompleteBaseWidget(TypesWidget):
