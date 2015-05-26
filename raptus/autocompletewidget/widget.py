@@ -1,47 +1,60 @@
-from zope import component, schema
-
-from Products.Five.browser import BrowserView
-
-from Products.Archetypes.utils import DisplayList
-from Products.Archetypes.Widget import TypesWidget, StringWidget, LinesWidget
+# -*- coding: utf-8 -*-
 from Products.Archetypes.Registry import registerPropertyType
 from Products.Archetypes.Registry import registerWidget
-
+from Products.Archetypes.Widget import LinesWidget
+from Products.Archetypes.Widget import StringWidget
+from Products.Archetypes.Widget import TypesWidget
+from Products.Archetypes.utils import DisplayList
 from Products.CMFPlone.utils import safe_unicode
-
+from Products.Five.browser import BrowserView
 from raptus.autocompletewidget.interfaces import ISearchableVocabulary
+from zope import component
+from zope import schema
+
 
 class AutocompleteSearch(BrowserView):
-    
+
     def __call__(self):
-        
+        # When not return data, you must set the 'Content-Type' header
+        # to avoid javascript error in firefox:
+        #
+        # TypeError: data.split is not a function
+        #
+        # see:
+        #
+        # http://stackoverflow.com/questions/7642202/xml-parsing-error-not-well-formed-in-firefox-but-good-in-chrome
+        self.request.RESPONSE.setHeader('Content-Type', 'text/plain')
+
         field = self.request.get('f', None)
         query = safe_unicode(self.request.get('q', ''))
-        limit = self.request.get('limit', None)
         if not query or not field:
             return ''
-        
+
         field = self.context.Schema().getField(field)
         if not field:
             return ''
-        
+
         vocabulary = field.vocabulary
         if not isinstance(vocabulary, DisplayList) and not vocabulary:
             factory_name = getattr(field, 'vocabulary_factory', None)
             if factory_name is not None:
-                factory = component.getUtility(schema.interfaces.IVocabularyFactory, name=factory_name)
+                factory = component.getUtility(
+                    schema.interfaces.IVocabularyFactory, name=factory_name)
                 vocabulary = factory(self.context)
         if ISearchableVocabulary.providedBy(vocabulary):
             results = vocabulary.search(query, self.context)
         else:
             query = query.lower()
             vocab = field.Vocabulary(self.context).items()
-            results = [(value, title) for value, title in vocab if query in value.lower() or query in title.lower()]
-        
-        return '\n'.join(["%s|%s" % (value, title) for value, title in results])
-    
+            results = [(value, title) for value, title in vocab
+                       if query in value.lower() or query in title.lower()]
+
+        return '\n'.join(["%s|%s" % (value, title)
+                          for value, title in results])
+
+
 class AutocompletePopulate(AutocompleteSearch):
-    
+
     def __call__(self):
         results = super(AutocompletePopulate, self).__call__()
         results = results.split('\n')
@@ -49,20 +62,21 @@ class AutocompletePopulate(AutocompleteSearch):
         for r in results:
             if r.startswith(u'%s|' % safe_unicode(query)):
                 return r
-        
+
+
 class AutocompleteBaseWidget(TypesWidget):
     _properties = {
-        'blurrable' : False,
-        'minChars' : 2,
-        'maxResults' : 10,
-        'mustMatch' : False,
-        'matchContains' : True,
-        'formatItem' : 'function(row, idx, count, value) { return row[1]; }',
+        'blurrable': False,
+        'minChars': 2,
+        'maxResults': 10,
+        'mustMatch': False,
+        'matchContains': True,
+        'formatItem': 'function(row, idx, count, value) { return row[1]; }',
         'formatResult': 'function(row, idx, count) { return ""; }',
         }
-    
+
     # JavaScript template
-    
+
     js_template = """\
     (function($) {
         $().ready(function() {
@@ -83,34 +97,37 @@ class AutocompleteBaseWidget(TypesWidget):
         });
     })(jQuery);
     """
-    
+
     def js(self, instance, fieldName):
-        
+
         form_url = instance.absolute_url()
 
         js_callback = self.js_callback_template % dict(id=fieldName)
-        js_populate = self.js_populate_template % dict(id=fieldName, url=form_url)
-        
+        js_populate = self.js_populate_template % dict(
+            id=fieldName, url=form_url)
+
         return self.js_template % dict(id=fieldName,
                                        url=form_url,
                                        minChars=self.minChars,
                                        maxResults=self.maxResults,
                                        mustMatch=str(self.mustMatch).lower(),
-                                       matchContains=str(self.matchContains).lower(),
+                                       matchContains=str(
+                                           self.matchContains).lower(),
                                        formatItem=self.formatItem,
                                        formatResult=self.formatResult,
                                        js_callback=js_callback,
                                        js_populate=js_populate,)
 
+
 class AutocompleteSelectionWidget(AutocompleteBaseWidget):
     _properties = StringWidget._properties.copy()
     _properties.update(AutocompleteBaseWidget._properties)
     _properties.update({
-        'macro' : "autocomplete",
+        'macro': "autocomplete",
         })
-    
+
     # JavaScript template
-    
+
     # the funny <" + "input bit is to prevent breakage in testbrowser tests
     # when it parses the js as a real input, but with a bogus value
     js_callback_template = """\
@@ -124,7 +141,7 @@ class AutocompleteSelectionWidget(AutocompleteBaseWidget):
             $('#archetypes-fieldname-%(id)s #%(id)s-input').val('');
     }
     """
-    
+
     js_populate_template = """\
     var value = $(this).val();
     if(value)
@@ -135,16 +152,17 @@ class AutocompleteSelectionWidget(AutocompleteBaseWidget):
             }
         });
     """
-    
+
+
 class AutocompleteMultiSelectionWidget(AutocompleteBaseWidget):
     _properties = LinesWidget._properties.copy()
     _properties.update(AutocompleteBaseWidget._properties)
     _properties.update({
-        'macro' : "autocompletemulti",
+        'macro': "autocompletemulti",
     })
-    
+
     # JavaScript template
-    
+
     # the funny <" + "input bit is to prevent breakage in testbrowser tests
     # when it parses the js as a real input, but with a bogus value
     js_callback_template = """\
@@ -158,7 +176,7 @@ class AutocompleteMultiSelectionWidget(AutocompleteBaseWidget):
             $('#archetypes-fieldname-%(id)s #%(id)s-input').val('');
     }
     """
-    
+
     js_populate_template = """\
     value = $(this).text().split("\\n");
     if(value)
@@ -190,4 +208,3 @@ registerPropertyType('mustMatch', 'boolean', AutocompleteSelectionWidget)
 registerPropertyType('matchContains', 'boolean', AutocompleteSelectionWidget)
 registerPropertyType('formatItem', 'string', AutocompleteSelectionWidget)
 registerPropertyType('formatResult', 'string', AutocompleteSelectionWidget)
-        
