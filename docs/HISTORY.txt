@@ -1,6 +1,13 @@
 Changelog
 =========
 
+1.0b3 (unreleased)
+------------------
+
+* Adds 'Content-Type' header in the return of views.
+  [idgserpro]
+
+
 1.0b2 (2010-12-06)
 ------------------
 
